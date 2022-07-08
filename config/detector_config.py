@@ -1,0 +1,1 @@
+faster_rcnn_r50_fpn_1x_coco='faster_rcnn_r50_fpn_1x_coco'
