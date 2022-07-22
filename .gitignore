@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# TODO list
+TODO.txt
+main_.py
+mquant.py
 # C extensions
 *.so
 

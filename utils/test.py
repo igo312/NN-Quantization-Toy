@@ -8,6 +8,7 @@ import pdb
 
 def modelEval(model, data_loader, device, mode):
     assert mode in ['cls', 'det', 'cls_int', 'det_int']
+    model.eval()
     def evaldet(model, batch_data):
         img, img_metas = batch_data['img'], batch_data['img_metas']
         pdb.set_trace()
@@ -55,7 +56,9 @@ def getDataLoader(cfg_path, mode):
         dataset = build_det_dataset(data_cfg.data.test)
 
     test_dataloader_default_args = dict(
-        samples_per_gpu=1, workers_per_gpu=2, dist=False, shuffle=False)
+        samples_per_gpu=1, workers_per_gpu=2, dist=False, shuffle=False,)
+        #num_gpus=1,
+        #persistent_workers=False)
     test_loader_cfg = {
         **test_dataloader_default_args,
         **data_cfg.data.get('test_dataloader', {})

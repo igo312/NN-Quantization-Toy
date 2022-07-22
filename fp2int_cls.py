@@ -1,6 +1,7 @@
 # Note
 # some model is not uploaded to mim model store. So use different cfg may raise error
 # and the downloaded ckpt may get different name compare to cfg such as resnet18_8xb16_cifar10 will get resnet18_b16x8...pth
+import io
 
 from mmcls.apis import init_model
 from utils.fileCheck import modelExist, getCkptPath
@@ -11,6 +12,7 @@ import argparse
 from torch.quantization.quantize_fx import prepare_fx, convert_fx
 from torch.quantization import get_default_qconfig
 from torch import nn
+import torch
 import pdb
 import copy
 from tqdm import tqdm
@@ -52,6 +54,7 @@ def load_model(model_name):
 
 def quant_fx(model, carloader=None):
     qconfig = get_default_qconfig('fbgemm') # 使用fx2trt 下述任务功能实现
+    #qconfig = get_default_qconfig('qnnpack')
     qconfig_dict = {"":qconfig}
     new_model = preModel(model)
     new_model.eval()
@@ -65,9 +68,29 @@ def quant_fx(model, carloader=None):
     quantized_model = convert_fx(prepared_model)
     return quantized_model
 
+def onnx_export(quantitized_model, model_name):
+    # https://discuss.pytorch.org/t/onnx-export-of-quantized-model/76884/8?u=igo312
+    # right now, it only suppoort convert quantitized model to caffe then to onnx
+    raise NotImplementedError
+    save_path = os.path.join(ckpt_save_path, model_name + '_int8.onnx')
+    save_jit_path = os.path.join(ckpt_save_path, model_name + '_int8_jit.pth')
+    dummy_inp = torch.randn((1, 3, 32, 32))
+    dummy_out = quantitized_model(dummy_inp)
+
+    pdb.set_trace()
+    traced = torch.jit.trace(quantitized_model, dummy_inp)
+    torch.jit.save(traced, save_jit_path)
+
+    model = torch.jit.load(save_jit_path)
+    torch.onnx.export(model, dummy_inp, save_path, input_names=["x"], example_outputs=dummy_out,
+                      operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK)
+
+
 def arg_parse():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', help='The device option for model and data', default='cpu')
+    parser.add_argument('--save', action='store_true')
+    parser.add_argument('--onnx-export', action='store_true')
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -77,10 +100,19 @@ if __name__ == '__main__':
     model_name = resnet18_8xb16_cifar10
     model = load_model(model_name)
 
-    quantitizaed_model = quant_fx(model, data_loader)
+    quantitized_model = quant_fx(model, data_loader)
     print('Quantization Complete')
 
+    if args.save:
+        save_path = os.path.join(ckpt_save_path, model_name+'_int8.pth')
+        print('the mode is save as {}'.format(save_path))
+        torch.save(quantitized_model.state_dict(), save_path)
 
-    modelEval(quantitizaed_model, data_loader, args.device, mode='cls_int')
+    if args.onnx_export:
+        onnx_export(quantitized_model, model_name)
+
+
+
+    modelEval(quantitized_model, data_loader, args.device, mode='cls_int')
 
 

@@ -1,6 +1,7 @@
 # Quantization Toy
 
 基于[mmdetection](https://github.com/open-mmlab/mmdetection)与[mmclassification](https://github.com/open-mmlab/mmclassification),实现无需模型训练，专注于对模型量化的学习。
+
 This project is just a naive quantization toy which is based on [mmdetection](https://github.com/open-mmlab/mmdetection) and [mmclassification](https://github.com/open-mmlab/mmclassification). The best thing we can focus on quantization, the model can be downloaded from openmmlab.
 
 
@@ -50,6 +51,11 @@ python fp_classify
 python fp2int_cls.py
 ```
 
+3. if you want to compare the speed of origin model and quanted model, you can run
+you also can find out how to load a quantitized model here which follows [link](https://discuss.pytorch.org/t/how-to-load-quantized-model-for-inference/140283)
+```
+python ./tools/cls_benchmark ...your_cifar10_resnet18.pth ...your_quanted_cifar10_resnet18.pth
+```
 **0708 Attention**: Right now we only support classification test Although you can find `fp_detection.py` work as well if you sample the coco data and give the right to the `config/coco_detection.py`
 
 
