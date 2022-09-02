@@ -141,7 +141,7 @@ def equalizationv1(prev, cur, modules):
 if __name__ == '__main__':
     transform = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Resize((128,128)), # mobilenet
+        torchvision.transforms.Resize((128,128)), # mobilenet, resnet18 has no resize
         torchvision.transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
 
     ])

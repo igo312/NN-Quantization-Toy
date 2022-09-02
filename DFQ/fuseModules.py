@@ -78,16 +78,20 @@ def replace_node_module(node: fx.Node, modules, new_module: torch.nn.Module):
     setattr(modules[parent_name], name, new_module)
 
 def fuse_conv_bn(model):
+    '''
+    :param model: a traind model
+    :return: the default mode is un-inplaced, which means the function will copy a model then fuse the BN_CONV
+    '''
     assert not model.training
     model = copy.deepcopy(model)
     symbolic_traced = symbolic_trace(model)
     graph = symbolic_traced.graph
     modules = dict(symbolic_traced.named_modules()) # it should use traced modules not model
-    new_graph = copy.deepcopy(graph)
+    #new_graph = copy.deepcopy(graph)
 
     pattern = (nn.Conv2d, nn.BatchNorm2d)
     #[old line] for node in graph.nodes: (bug, should use the node from new graph )
-    for node in new_graph.nodes:
+    for node in graph.nodes:
         if matches_module_pattern(pattern, node, modules):
             if len(node.args[0].users) > 1: continue
             # 如果为true，则当前node为bn，且前一层是conv
@@ -95,8 +99,10 @@ def fuse_conv_bn(model):
             replace_node_module(node.args[0], modules, fused_conv)
             # 融合删除节点的一个方法
             node.replace_all_uses_with(node.args[0])
-            new_graph.erase_node(node)
-    return fx.GraphModule(symbolic_traced, new_graph)
+            graph.erase_node(node)
+
+    return fx.GraphModule(symbolic_traced, graph)
+
 
 # TODO not done yet
 def fuse_conv_relu(model):
@@ -130,7 +136,7 @@ if __name__ == '__main__':
     for node in new_graph.nodes:
         if matches_module_pattern(pattern, node, modules):
             # 如果为true，则当前node为bn，且前一层是conv
-            fused_conv = fuse_conv_bn_eval(modules[node.args[0].target], modules[node.target])
+            fused_conv = fuse_conv_bn(modules[node.args[0].target], modules[node.target])
             replace_node_module(node.args[0], modules, fused_conv)
             # 融合删除节点的一个方法
             node.replace_all_uses_with(node.args[0])

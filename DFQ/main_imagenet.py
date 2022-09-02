@@ -3,7 +3,7 @@ import pdb
 
 from fuseModules import fuse_conv_bn
 from weightEqualization import weight_equalization
-from DFQ.utils import test, QuantConv2d, QuantLinear, load_model
+from DFQ.utils import test, QuantConv2d, QuantLinear
 
 import torchvision
 import torch
@@ -64,13 +64,8 @@ def quant_model(model):
 
 if __name__ == '__main__':
     # model load
-    model = torchvision.models.resnet18(pretrained=10)
-    model.fc = torch.nn.Linear(512, 10)
-    model = load_model(model, ckpt='./ckpt/resnet18_cifar10_best.pth')
-    # model = torchvision.models.mobilenet_v2()
-    # model.classifier[1] = torch.nn.Linear(1280, 10)
-    # model = load_model(model, ckpt='./ckpt/mobilenet_cifar10_best.pth')
-
+    #model = torchvision.models.resnet18(weights='IMAGENET1K_V1')
+    model = torchvision.models.mobilenet_v2(weights='IMAGENET1K_V1')
     ori_model = copy.deepcopy(model)
     model.eval()
     # Do the (conv2d, BN) fusion and cross layer equalization
@@ -83,16 +78,16 @@ if __name__ == '__main__':
     # replace the module
     transform = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
-        #torchvision.transforms.Resize((128, 128)),  # mobilenet
-        torchvision.transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        torchvision.transforms.Resize((224, 224)),
+        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    data = torchvision.datasets.CIFAR10(root='./data/', train=False, download=False, transform=transform)
-    loader = torch.utils.data.DataLoader(data, batch_size=32, num_workers=8, shuffle=False)
+    root = '/home/f523/guazai/disk3/data/imagenet_1k_val'
+    data = torchvision.datasets.ImageFolder(root, transform)
+    loader = torch.utils.data.DataLoader(data, batch_size=1, num_workers=8, shuffle=False,
+                                         pin_memory=True, prefetch_factor=2, persistent_workers=True)
 
 
-    test(ori_model, loader, prefix='Model Ori', device="cuda:0") # resnet18 acc 72.24 mobilnet 75.27
-    test(fuse_model, loader, prefix='Model FUSE BN', device="cuda:0") # resnet18 acc 71.98 mobilenet 75.16
-    test(cle_model, loader, prefix='Model CLE', device="cuda:0") # resnet18 acc 72.06 mobilenet 73.86
-
-
+    test(ori_model, loader, prefix='Model Ori', device="cuda:0") # resnet18 acc 65 mobilnet 67.06
+    test(fuse_model, loader, prefix='Model FUSE BN', device="cuda:0") # resnet18 acc 65.23 mobilenet 63.14
+    test(cle_model, loader, prefix='Model CLE', device="cuda:0") # resnet18 acc 65.46 mobilenet 40.04
 

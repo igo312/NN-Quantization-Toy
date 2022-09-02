@@ -16,7 +16,7 @@ from mqbench.prepare_by_platform import prepare_by_platform
 from mqbench.prepare_by_platform import BackendType
 from mqbench.utils.state import enable_quantization
 backend = BackendType.Tensorrt
-
+eps=1e-8
 # TODO: there should be bias absortion process, will do it later.
 
 # weight function
@@ -58,7 +58,6 @@ def pattern_match(prev, cur, patterns, modules):
         return False
     return True
 
-# TODO there can be statical function to analyze the range from different channel
 def equalization(prev, cur, modules):
     # conv weight: [cout, cin, w, h]
     w1 = modules[prev.args[0].target]
@@ -83,25 +82,16 @@ def equalization(prev, cur, modules):
         w2_weight_sub = w2_weight[c_start_o:c_end_o]
 
         cout, cin = w1_weight_sub.size(0), w1_weight_sub.size(1)
-        w1_weight_sub = w1_weight_sub.view(cout, -1)
-        w2_weight_sub = w2_weight_sub.permute(1,0,2,3).contiguous().view(cout, -1)
+        for c_idx in range(cout):
+            range1 = torch.max(w1_weight_sub[c_idx]) - torch.min(w1_weight_sub[c_idx])
+            range2 = torch.max(w2_weight_sub[:, c_idx]) - torch.min(w2_weight_sub[:, c_idx])
+            s = (1/(range1+eps)) * torch.sqrt(range1*range2+eps)
+            s.clamp_(1e-8, 1e8)
+            w1_weight[c_start_i+c_idx].mul_(s)
+            if w1_bias is not None:
+                w1_bias[c_start_i+c_idx].mul_(s)
+            w2_weight[c_start_o:c_end_o, c_idx].mul_(1/s)
 
-        w1_max, w1_min = w1_weight_sub.max(dim=1)[0], w1_weight_sub.min(dim=1)[0]
-        w2_max, w2_min = w2_weight_sub.max(dim=1)[0], w2_weight_sub.min(dim=1)[0]
-        range1, range2 = w1_max-w1_min, w2_max-w2_min
-
-        scale = torch.sqrt(range1*range2)/(range1+1e-8)
-        scale.clamp_(1e-8, 1e8)
-        w1_s = scale.reshape(cout, 1, 1, 1)
-
-        # Note, the equation is little different from paper which you can find why in their appendix
-        w1_weight[c_start_i:c_end_i] = nn.Parameter(w1_weight[c_start_i:c_end_i]*w1_s)
-        if isinstance(w1.bias, nn.Parameter):
-            w1_bias[c_start_i:c_end_i] = nn.Parameter(w1_bias[c_start_i:c_end_i]*scale)
-
-        w2_s = scale.reshape(1, cout, 1, 1)
-        w2_weight[c_start_o:c_end_o] = nn.Parameter(w2_weight[c_start_o:c_end_o]/w2_s)
-    #pdb.set_trace()
     w1.weight, w1.bias = nn.Parameter(w1_weight), nn.Parameter(w1_bias)
     w2.weight = nn.Parameter(w2_weight)
 
@@ -112,8 +102,8 @@ if __name__ == '__main__':
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Resize((224,224)), # mobilenet
         torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-
     ])
+
     # data = torchvision.datasets.ImageNet(root='./data/', train=False, download=True, transform=transform)
     root = '/home/f523/guazai/disk3/data/imagenet_1k_val'
     data = torchvision.datasets.ImageFolder(root, transform)
